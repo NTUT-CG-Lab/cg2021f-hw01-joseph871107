@@ -201,10 +201,12 @@
 			};
 
 			class PLYModel{
-				constructor(scene, path, texturePaths){
+				constructor(scene, path, texturePaths, plane){
 					this.scene = scene;
 					this.path = path;
 					this.texturePaths = texturePaths;
+					this.plane = plane;
+					this.speed = new THREE.Vector3(-2, 0, -3);
 
 					this.group = new THREE.Group();
 					this.group.position.y = 200;
@@ -235,7 +237,6 @@
 							geometry.computeVertexNormals();
 
 							const mesh = new THREE.Mesh(geometry, ref.materials);
-							mesh.position.z = -200;
 							mesh.scale.set(100, 100, 100);
 
 							ref.group.add(mesh);
@@ -249,8 +250,44 @@
 					)
 				}
 
+				setPosition(vector){
+					this.group.position.x = vector.x;
+					// this.group.position.y = vector.y;
+					this.group.position.z = vector.z;
+				}
+
 				update(){
-					this.group.rotation.y += Math.PI * 2 * 2 / 360.0;
+					if (!this.planeBB){
+						if (this.plane){
+							let scale = 0.5;
+							this.planeBB = {
+								min: {
+									x: this.plane.planeGeo.boundingBox.min.x * scale,
+									y: this.plane.planeGeo.boundingBox.min.z * scale,
+									z: this.plane.planeGeo.boundingBox.min.y * scale,
+								},
+								max: {
+									x: this.plane.planeGeo.boundingBox.max.x * scale,
+									y: this.plane.planeGeo.boundingBox.max.z * scale,
+									z: this.plane.planeGeo.boundingBox.max.y * scale,
+								}
+							};
+							console.log(this.planeBB);
+						}
+					}else{
+						let position = this.group.position;
+						let bb = this.planeBB;
+						let statusX = bb.min.x <= position.x && position.x <= bb.max.x;
+						let statusZ = bb.min.z <= position.z && position.z <= bb.max.z;
+						if (!(statusX && statusZ)){
+							if (!statusX)
+								this.speed.x = -this.speed.x;
+							if (!statusZ)
+								this.speed.z = -this.speed.z;
+						}
+						this.setPosition(this.group.position.add(this.speed));
+					}
+					// this.group.rotation.y += Math.PI * 2 * 2 / 360.0;
 				}
 			}
 
@@ -278,14 +315,16 @@
 					// Group
 					this.group.position.y = 100;
 					this.scene.add( this.group );
+					this.planeGeo = new THREE.PlaneGeometry( 1000, 1000 );
 
 					// Plane
 					const plane = new THREE.Mesh(
-						new THREE.PlaneGeometry( 1000, 1000 ),
+						this.planeGeo,
 						new THREE.MeshBasicMaterial( { color: 0xffffff, opacity: 0.5, transparent: true } )
 					);
 					plane.position.y = 100;
 					plane.rotation.x = - Math.PI / 2;
+					this.planeGeo.computeBoundingBox();
 					this.scene.add( plane );
 
 					this.createText();
@@ -363,8 +402,7 @@
 					this.initLights();
 					this.initRenderer();
 					this.initEvents();
-					this.initTTF('fonts/jf-openhuninn-1.1.ttf', () => { this.initClock(this); this.initPlaneText(this) });
-					this.initPLY('model/zeldaPosed001.ply', 'textures/');
+					this.initTTF('fonts/jf-openhuninn-1.1.ttf', () => { this.initClock(this); this.initPlaneText(this); this.initPLY('model/zeldaPosed001.ply', 'textures/'); });
 				}
 
 				animate(){
@@ -451,7 +489,7 @@
 								if (line.includes('comment TextureFile '))
 									texturePaths.push(texturePath + line.split(' ')[2]);
 							}
-							this.ply = new PLYModel(this.scene, file, texturePaths);
+							this.ply = new PLYModel(this.scene, file, texturePaths, this.planeText);
 						}
 					);
 				}
